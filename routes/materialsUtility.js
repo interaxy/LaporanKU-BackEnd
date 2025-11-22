@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
 import { fileURLToPath } from 'url';
-import { pool } from '../db.js';
+import { pool } from '../database.js';
 import { authRequired, isAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
