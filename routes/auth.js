@@ -1,66 +1,119 @@
-import express from "express";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import { pool } from "../db.js";
+// routes/auth.js
+import express from 'express';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import { pool } from '../database.js';
 
 const router = express.Router();
 
-// POST /api/auth/register  (create first admin or users)
-router.post("/register", async (req, res) => {
-  try {
-    const { nama, email, password, role } = req.body;
-    if (!email || !password)
-      return res.status(400).json({ message: "email & password required" });
+// helper buat generate token
+function generateToken(user) {
+  const payload = {
+    id: user.id,
+    nama: user.nama,
+    email: user.email,
+    role: user.role,
+  };
+  const secret = process.env.JWT_SECRET || 'dev-secret';
+  return jwt.sign(payload, secret, { expiresIn: '7d' });
+}
 
-    const exists = await pool.query("SELECT id FROM users WHERE email=$1", [
-      email,
-    ]);
-    if (exists.rowCount > 0)
-      return res.status(409).json({ message: "Email already used" });
+// POST /api/auth/register
+router.post('/register', async (req, res) => {
+  const { nama, email, password } = req.body;
+
+  if (!nama || !email || !password) {
+    return res.status(400).json({ message: 'Nama, email, dan password wajib diisi' });
+  }
+
+  try {
+    // cek email sudah dipakai atau belum
+    const exists = await pool.query('SELECT id FROM users WHERE email=$1', [email]);
+    if (exists.rowCount > 0) {
+      return res.status(409).json({ message: 'Email sudah terdaftar' });
+    }
 
     const hash = await bcrypt.hash(password, 10);
-    const r = await pool.query(
-      "INSERT INTO users(nama, email, password, role) VALUES($1,$2,$3,$4) RETURNING id,nama,email,role",
-      [nama || "", email, hash, role === "admin" ? "admin" : "user"]
+
+    const result = await pool.query(
+      "INSERT INTO users(nama, email, password, role) VALUES($1,$2,$3,'user') RETURNING id, nama, email, role",
+      [nama, email, hash]
     );
-    res.status(201).json(r.rows[0]);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ message: "Register failed" });
+
+    const user = result.rows[0];
+    const token = generateToken(user);
+
+    res.status(201).json({ token, user });
+  } catch (err) {
+    console.error('Register error:', err);
+    res.status(500).json({ message: 'DB Error saat register' });
   }
 });
 
 // POST /api/auth/login
-router.post("/login", async (req, res) => {
+router.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ message: 'Email dan password wajib diisi' });
+  }
+
   try {
-    const { email, password } = req.body;
-    const r = await pool.query(
-      "SELECT id, nama, email, password, role FROM users WHERE email=$1",
+    const result = await pool.query(
+      'SELECT id, nama, email, password, role FROM users WHERE email=$1',
       [email]
     );
-    if (r.rowCount === 0)
-      return res.status(401).json({ message: "Invalid credentials" });
-    const user = r.rows[0];
-    const ok = await bcrypt.compare(password, user.password);
-    if (!ok) return res.status(401).json({ message: "Invalid credentials" });
 
-    const token = jwt.sign(
-      { id: user.id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "8h" }
+    if (result.rowCount === 0) {
+      return res.status(401).json({ message: 'Email atau password salah' });
+    }
+
+    const user = result.rows[0];
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) {
+      return res.status(401).json({ message: 'Email atau password salah' });
+    }
+
+    const token = generateToken(user);
+
+    // jangan kirim hash password ke client
+    delete user.password;
+
+    res.json({ token, user });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ message: 'DB Error saat login' });
+  }
+});
+
+// (opsional) GET /api/auth/me – ambil user dari token
+router.get('/me', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : null;
+
+    if (!token) {
+      return res.status(401).json({ message: 'No token' });
+    }
+
+    const secret = process.env.JWT_SECRET || 'dev-secret';
+    const decoded = jwt.verify(token, secret);
+
+    const result = await pool.query(
+      'SELECT id, nama, email, role FROM users WHERE id=$1',
+      [decoded.id]
     );
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        nama: user.nama,
-        email: user.email,
-        role: user.role,
-      },
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ message: "Login failed" });
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: 'User tidak ditemukan' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Me error:', err);
+    res.status(401).json({ message: 'Token tidak valid' });
   }
 });
 
