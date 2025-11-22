@@ -26,7 +26,7 @@ const __dirname = path.dirname(__filename);
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(o => o.trim()).filter(Boolean)
   : [
-      'https://reportingutility.vercel.app', // domain Vercel kamu
+      'https://laporankudeputy.vercel.app', // domain Vercel kamu
       'http://localhost:5173',               // untuk development lokal
     ];
 
