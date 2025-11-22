@@ -1,19 +1,17 @@
-import jwt from 'jsonwebtoken';
+import { pool } from '../database.js';
 
-export function authRequired(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return res.status(401).json({ message: 'Token not provided' });
+router.post('/register', async (req, res) => {
+  const { nama, email, password } = req.body;
+
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // { id, role }
-    next();
-  } catch (err) {
-    return res.status(401).json({ message: 'Invalid token' });
-  }
-}
+    const result = await pool.query(
+      "INSERT INTO users(nama, email, password, role) VALUES($1,$2,$3,'user') RETURNING *",
+      [nama, email, hash]
+    );
 
-export function isAdmin(req, res, next) {
-  if (req.user?.role !== 'admin') return res.status(403).json({ message: 'Forbidden' });
-  next();
-}
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "DB Error" });
+  }
+});
