@@ -49,13 +49,14 @@ export async function initDb() {
     // 3. issues
     await client.query(`
       CREATE TABLE IF NOT EXISTS issues (
-        id              SERIAL PRIMARY KEY,
-        title           TEXT NOT NULL,
-        description     TEXT,
-        status          VARCHAR(20) NOT NULL DEFAULT 'open',
-        priority        VARCHAR(20) NOT NULL DEFAULT 'medium',
-        created_by_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
-        created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      id              SERIAL PRIMARY KEY,
+      title           TEXT NOT NULL,
+      description     TEXT,
+      status          VARCHAR(20) NOT NULL DEFAULT 'open',
+      priority        VARCHAR(20) NOT NULL DEFAULT 'medium',
+      created_by_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_by_name TEXT,
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `);
 
