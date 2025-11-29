@@ -81,8 +81,13 @@ export async function initDb() {
         path            TEXT NOT NULL,
         uploaded_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
-    `);
+`    );
 
+    await client.query(`
+    ALTER TABLE materials_utility
+    ADD COLUMN IF NOT EXISTS uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+`   );
+    
     await client.query('COMMIT');
     console.log('✅ Database siap: semua tabel sudah dicek/dibuat.');
   } catch (err) {
